@@ -18,8 +18,11 @@
  */
 #include <SPI.h>
 #include <SD.h>
+#include <Wire.h>
 #include <ArduinoJson.h>
-#include <RTClib.h>
+#include "RTClib.h"
+
+RTC_DS1307 rtc;
 
 int PIN_BTN1 = A0; //buttone on/off letto con la porta analogica
 int PIN_BTN2 = 16; //buttone on/off allarme
@@ -52,7 +55,6 @@ double lat = 0.0;
 double lon = 0.0;
 bool bluetooth = false;
 
-
 void inAllarm(){  
   if(direction_vol && volume < 25)
     volume++;
@@ -75,11 +77,26 @@ void setup() {
   
   analogWrite(PIN_LED, 100);
   analogWrite(PIN_BUZZ, 0);
-  if (!SD.begin(4)) {
+
+  if(!SD.begin()){
     Serial.println("Ci sono problemi con la memoria SD!");
     in_error = true;
     return;
   }
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    while (1);
+  }
+
+  if (! rtc.isrunning()) {
+    Serial.println("RTC is NOT running!");
+    // following line sets the RTC to the date & time this sketch was compiled
+   // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    // This line sets the RTC with an explicit date & time, for example to set
+    // January 21, 2014 at 3am you would call:
+    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+  }
+  
   Serial.println("La memoria SD e' stata letta con successo");
 }
 //Imposta se il sistema è acceso o è spento
@@ -307,6 +324,8 @@ void printValues(){
 }
 bool loaded = false;
 void loop() {    
+  DateTime now = rtc.now();
+  Serial.print(now.unixtime());
   if(analogRead(PIN_BTN1) > 150){
     setStatus(!stats);
   }
@@ -341,17 +360,22 @@ void loop() {
           return;
       }
       Serial.println("Letto con successo"); 
-    printValues();
-    loaded = true;
+      printValues();
+      loaded = true;
     }
     
     
-    //leggere la configurazione da SD (config.json)
-    //aprire la connessione di rete (Wifi client o Wifi router)
-    //leggere il sensore di accelerazione (ADXl345)
-    //scrivere il datalog (raccolto in Database/Anno/Mese/Giorno/Ora.txt) . Se non è presente allora fare errore con buzzer
-    //uploadare il client 
-    //uploadare il server (via php i file raccolti per ora)
+    //[X] leggere la configurazione da SD (config.json)
+    //[ ] refresh della configurazione ogni minuto
+    //[ ] leggere il timestamp della RTC
+    //[ ] aprire la connessione di rete (Wifi client o Wifi router)
+    //[ ] leggere il sensore di accelerazione (ADXl345)
+    //[ ] rilevare attività
+    //[ ] scrivere il datalog (raccolto in Database/Anno/Mese/Giorno/Ora.txt) . Se non è presente allora fare errore con buzzer
+    
+    //[ ] aggiornare il timestamp della RTC via WEB
+    //[ ] uploadare il client 
+    //[ ] uploadare il server (via php i file raccolti per ora)
   }  
-  delay(100);
+  delay(3000);
 }
