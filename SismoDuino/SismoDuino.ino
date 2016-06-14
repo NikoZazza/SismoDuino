@@ -98,7 +98,7 @@ void setup() {
     Serial.println("Could not find a valid ADXL345 sensor, check wiring!");
     delay(500);
   }
-  accelerometro.setRange(ADXL345_RANGE_16G);
+  accelerometro.setRange(ADXL345_RANGE_2G);
   Serial.println("La memoria SD e' stata letta con successo");
 }
 void inAllarm(){  
@@ -357,13 +357,13 @@ void loop() {
   if(analogRead(PIN_BTN1) > 150){
     setStatus(!stats);
   }
-  if(digitalRead(PIN_BTN2) == HIGH && !in_allarm){
+  if(digitalRead(PIN_BTN2) == HIGH && !in_allarm && stats){
     delay(100);
     if(digitalRead(PIN_BTN2) == HIGH)
       setAllarm(!allarm);
     calibrato = false;
   }
-  if(in_allarm){
+  if(in_allarm && stats){
     Serial.println("=====================ALLARME==========================");
     if(digitalRead(PIN_BTN2) == HIGH){
       in_allarm = false;
@@ -425,30 +425,52 @@ void loop() {
     //[ ] uploadare il server (via php i file raccolti per ora)
   }  
   Vector norm = accelerometro.readNormalize();
-  if(!calibrato){
-    last_x = norm.XAxis;
-    last_y = norm.YAxis;
-    last_z = norm.ZAxis;
-    calibrato = true;
-  }
+  
   Serial.println(count_acc);
-  if(count_acc >= 3){
+  if(count_acc >= 5){
     if(!in_allarm){
       x = x/count_acc;
       y = y/count_acc;
       z = z/count_acc;
+      
+      Serial.print("x=");
+      Serial.println(x);
+      
+      Serial.print("y=");
+      Serial.println(y);
+      
+      Serial.print("z=");
+      Serial.println(z);
+
+      
+      Serial.print("last_x=");
+      Serial.println(last_x);
+      
+      Serial.print("last_y=");
+      Serial.println(last_y);
+      
+      Serial.print("last_z=");
+      Serial.println(z);
+      
       double range = 0.10 * precision;
-      if(x >= last_x + range || x <= last_x - range)
+      if(calibrato && (x >= last_x + range || x <= last_x - range))
         in_allarm = true;
-      if(y >= last_y + range || y <= last_y - range)
+      if(calibrato && (y >= last_y + range || y <= last_y - range))
         in_allarm = true;  
-      if(z >= last_z + range || z <= last_z - range)
+      if(calibrato && (z >= last_z + range || z <= last_z - range))
         in_allarm = true;
+      if(!calibrato){
+        last_x = x;
+        last_y = y;
+        last_z = z;
+        calibrato = true;
+      }
       x = 0;
       y = 0;
       z = 0;
-      count_acc = 0;
+      
     }
+    count_acc = 0;
   }
   if(norm.XAxis < 0)
     x -= -norm.XAxis;
