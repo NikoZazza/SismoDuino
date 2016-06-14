@@ -21,7 +21,9 @@
 #include <Wire.h>
 #include <ArduinoJson.h>
 #include "RTClib.h"
+#include <ADXL345.h>
 
+ADXL345 accelerometro;
 RTC_DS1307 rtc;
 
 int PIN_BTN1 = A0; //buttone on/off letto con la porta analogica
@@ -31,10 +33,11 @@ int PIN_LED = 2; //pin led dello stato
 int volume = 0; //volume dell'allarme
 bool direction_vol = true; //direzione volume, se è true incrementa
 
-int timestamp = 0;
+DateTime ora; //ora corrente del sensore RTC
+int refresh_config = 0; //quando è stata caricata la configurazione
 
 bool stats = true; //se il sistema è acceso(true)
-bool allarm = false; //se l'allarme è accesso(true)
+bool allarm = true; //se l'allarme è accesso(true)
 bool in_allarm = false; //se l'allarme sta suonando
 bool in_error = false; //se è presente qualche errore nel sistema allora il led di accensione lampeggia
 
@@ -54,20 +57,17 @@ const char *pwd = "guest";
 double lat = 0.0;
 double lon = 0.0;
 bool bluetooth = false;
+int precision = 3; //precisione dell'accelerometro(1- precisione alta, 10- precisione bassa)
 
-void inAllarm(){  
-  if(direction_vol && volume < 25)
-    volume++;
-  if(!direction_vol && volume > 3)
-    volume--;
-  if(direction_vol && volume >= 25)
-    direction_vol = false;
-  if(!direction_vol && volume <= 3)
-    direction_vol = true;
-  analogWrite(PIN_BUZZ, volume*10);
-  Serial.print("Volume = ");
-  Serial.println((volume*10));
-}
+//accelerometro
+double x = 0.00;
+double y = 0.00;
+double z = 0.00;
+int count_acc = 0; //contatore accelerometro, se è 3 allora fa la media e controlla con i valori calibrati
+bool calibrato = false;
+double last_x = 0.00; 
+double last_y = 0.00;
+double last_z = 0.00;
 
 void setup() {  
   Serial.begin(9600);
@@ -83,21 +83,36 @@ void setup() {
     in_error = true;
     return;
   }
-  if (! rtc.begin()) {
-    Serial.println("Couldn't find RTC");
-    while (1);
+  if(!rtc.begin()) {
+    Serial.println("Il sensore RealTimeClock non è stato trovato!");
+    in_error = true;
+    return;
   }
-
-  if (! rtc.isrunning()) {
-    Serial.println("RTC is NOT running!");
-    // following line sets the RTC to the date & time this sketch was compiled
-   // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-    // This line sets the RTC with an explicit date & time, for example to set
-    // January 21, 2014 at 3am you would call:
-    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+  if(!rtc.isrunning()){
+    Serial.println("Il sensore RealTimeClock non è in esecuzione!");
+    in_error = true;
+    return;
+  }  
+  if(!accelerometro.begin())
+  {
+    Serial.println("Could not find a valid ADXL345 sensor, check wiring!");
+    delay(500);
   }
-  
+  accelerometro.setRange(ADXL345_RANGE_16G);
   Serial.println("La memoria SD e' stata letta con successo");
+}
+void inAllarm(){  
+  if(direction_vol && volume <= 20)
+    volume++;
+  if(!direction_vol && volume > 3)
+    volume--;
+  if(direction_vol && volume >= 20)
+    direction_vol = false;
+  if(!direction_vol && volume <= 3)
+    direction_vol = true;
+  analogWrite(PIN_BUZZ, volume*10);
+  Serial.print("Volume = ");
+  Serial.println((volume*10));
 }
 //Imposta se il sistema è acceso o è spento
 void setStatus(bool var){
@@ -109,6 +124,9 @@ void setStatus(bool var){
   }else{
     analogWrite(PIN_LED, 0);
     Serial.println("OFF");
+    in_allarm = false;
+    allarm = true;
+        
   }  
   delay(200);   
 }
@@ -131,6 +149,7 @@ void setAllarm(bool var){
 }
 //Legge la configurazione e la memorizza nell'array
 bool loadConfig(){
+  Serial.println("Carico la configurzione...");
   if (SD.exists("CONFIG.JSO")) {
      Serial.println("Lettura scheda SD");
       File conf = SD.open("CONFIG.JSO", FILE_READ);
@@ -142,15 +161,12 @@ bool loadConfig(){
         i++;
       }
       conf.close(); 
-      Serial.print("Result ");
-      Serial.println(c);
       JsonObject& root = jsonBuffer.parseObject(c);
 
       if (!root.success()){
         Serial.println("Alla configurazione mancano alcuni parametri!");
         SD.remove("CONFIG.JSO");
-        loadConfig();
-        return false;
+        return loadConfig();
       }
       if(isValidConf(root)){ //la configurazione è valida
         stats = (bool)root["status"];
@@ -183,12 +199,14 @@ bool loadConfig(){
         lat = (double)root["lat"];
         lon = (double)root["lon"];
         bluetooth = (bool)root["bluetooth"];
+        precision = (int)root["precision"];
+        refresh_config = ora.unixtime();
+        return true;
       }else{
         Serial.println("La configurazione attuale non è valida!");
         SD.remove("CONFIG.JSO");
-        loadConfig();
+        return loadConfig();
       }
-      return true;
   }else{
       Serial.println("Ci sono problemi con la memoria SD: file config.jso non trovato");
       setConfig();
@@ -213,8 +231,7 @@ String getValue(String data, const char separator, int index){
 //verifica sel a configurazione del file è valida
 bool isValidConf(JsonObject& root){
   int j = 0;
-  int h = 16;
-  char *my_param[] = {"status", "allarm", "debug", "wifi_mode", "my_ssid", "password", "dhcp", "ip_v4", "gateway", "subnet_mask", "my_id", "server_query", "user", "pwd", "lat", "lon", "bluetooth", "\n"};
+  char *my_param[] = {"status", "allarm", "debug", "wifi_mode", "my_ssid", "password", "dhcp", "ip_v4", "gateway", "subnet_mask", "my_id", "server_query", "user", "pwd", "lat", "lon", "bluetooth", "precision","\n"};
   bool error = false;
   while(my_param[j] != "\n"){    
     if(!root.containsKey(my_param[j]))    
@@ -249,6 +266,7 @@ void setConfig(){
   root["lat"] = double_with_n_digits(lat, 8);
   root["lon"] = double_with_n_digits(lon, 8);
   root["bluetooth"] = bluetooth;
+  root["precision"] = precision;
   
   root.prettyPrintTo(conf);
   conf.close();
@@ -267,6 +285,13 @@ String addressToChar(int a, int b, int c, int d){
   String t = ".";
   return String(a)+t+String(b)+t+String(c)+t+String(d);
 }
+
+void execCmd(String cmd){
+  if(cmd == "print" || getValue(cmd, ' ', 0) == "print"){
+    printValues();  
+  }  
+}
+
 
 void printValues(){
   Serial.print("my_key=");  
@@ -321,20 +346,29 @@ void printValues(){
   Serial.println(lon);
   Serial.print("bluetooth=");  
   Serial.println(bluetooth);
-}
-bool loaded = false;
+  Serial.print("precision=");
+  Serial.println(precision);
+} 
+
 void loop() {    
-  DateTime now = rtc.now();
-  Serial.print(now.unixtime());
+  ora = rtc.now();
+  Serial.println(in_allarm);
+  Serial.println(ora.unixtime());
   if(analogRead(PIN_BTN1) > 150){
     setStatus(!stats);
   }
   if(digitalRead(PIN_BTN2) == HIGH && !in_allarm){
-    setAllarm(!allarm);
+    delay(100);
+    if(digitalRead(PIN_BTN2) == HIGH)
+      setAllarm(!allarm);
+    calibrato = false;
   }
   if(in_allarm){
-    if(digitalRead(PIN_BTN2) == HIGH)
+    Serial.println("=====================ALLARME==========================");
+    if(digitalRead(PIN_BTN2) == HIGH){
       in_allarm = false;
+      calibrato = false;
+    }
     if(!allarm)
       inAllarm();  
   }
@@ -348,34 +382,87 @@ void loop() {
     analogWrite(PIN_LED, 255);  
     delay(150);
   }
-  
-  //leggere i dati ricevuti da seriale o da bluetooth ed eseguirli
-  
+  String received = "";
+  bool getCmd = false;
+  while(Serial.available() > 0){
+    getCmd = true;
+    received += (char) Serial.read();    
+  }
+  if(getCmd){
+    received.trim();
+    Serial.print("Comando ricevuto: ");
+    Serial.println(received);
+    execCmd(received);
+    /*[ ] leggere i dati ricevuti da seriale o da bluetooth ed eseguirli
+     * [X] print
+     * [ ] reload config
+     * [ ] restart nodemcu
+     * [ ] set (tutti i  campi)
+     * [ ] get (tutti i campi)
+     */
+  }
   if(stats && !in_error){
-    if(!loaded)
-    {printValues();
-    Serial.println("nessun errore");
+    if(ora.unixtime() > (refresh_config + 60*5)){ //ricarica la configurazione ogni 5 minuti
       if(!loadConfig()){
-          in_error = true;
-          return;
+        in_error = true;
+        Serial.println("Ci sono problemi con il file di configurazione");
+        return;
       }
-      Serial.println("Letto con successo"); 
-      printValues();
-      loaded = true;
     }
     
-    
+    //[X] calibrazione accelerometro tramite il pulsante allarme
     //[X] leggere la configurazione da SD (config.json)
-    //[ ] refresh della configurazione ogni minuto
-    //[ ] leggere il timestamp della RTC
+    //[X] refresh della configurazione ogni 5 minuti
+    //[X] leggere il timestamp della RTC
     //[ ] aprire la connessione di rete (Wifi client o Wifi router)
-    //[ ] leggere il sensore di accelerazione (ADXl345)
-    //[ ] rilevare attività
+    //[ ] basso consumo
+    //[X] leggere il sensore di accelerazione (ADXl345)
+    //[X] rilevare attività
     //[ ] scrivere il datalog (raccolto in Database/Anno/Mese/Giorno/Ora.txt) . Se non è presente allora fare errore con buzzer
     
     //[ ] aggiornare il timestamp della RTC via WEB
     //[ ] uploadare il client 
     //[ ] uploadare il server (via php i file raccolti per ora)
   }  
-  delay(3000);
+  Vector norm = accelerometro.readNormalize();
+  if(!calibrato){
+    last_x = norm.XAxis;
+    last_y = norm.YAxis;
+    last_z = norm.ZAxis;
+    calibrato = true;
+  }
+  Serial.println(count_acc);
+  if(count_acc >= 3){
+    if(!in_allarm){
+      x = x/count_acc;
+      y = y/count_acc;
+      z = z/count_acc;
+      double range = 0.10 * precision;
+      if(x >= last_x + range || x <= last_x - range)
+        in_allarm = true;
+      if(y >= last_y + range || y <= last_y - range)
+        in_allarm = true;  
+      if(z >= last_z + range || z <= last_z - range)
+        in_allarm = true;
+      x = 0;
+      y = 0;
+      z = 0;
+      count_acc = 0;
+    }
+  }
+  if(norm.XAxis < 0)
+    x -= -norm.XAxis;
+  else
+    x += norm.XAxis;
+  if(norm.YAxis < 0)
+    y -= -norm.YAxis;
+  else
+    y += norm.YAxis;
+  if(norm.ZAxis < 0)
+    z -= -norm.ZAxis;
+  else
+    z += norm.ZAxis;
+  count_acc++;
+  
+  delay(100);
 }
