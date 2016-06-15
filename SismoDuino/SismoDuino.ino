@@ -57,7 +57,6 @@ const char *pwd = "guest";
 double lat = 0.0;
 double lon = 0.0;
 bool bluetooth = false;
-int precision = 3; //precisione dell'accelerometro(1- precisione alta, 10- precisione bassa)
 
 //accelerometro
 double x = 0.00;
@@ -68,6 +67,10 @@ bool calibrato = false;
 double last_x = 0.00; 
 double last_y = 0.00;
 double last_z = 0.00;
+
+double g_x = 0.00; //forza G in vari punti
+double g_y = 0.00;
+double g_z = 0.00;
 
 void setup() {  
   Serial.begin(9600);
@@ -98,7 +101,7 @@ void setup() {
     Serial.println("Could not find a valid ADXL345 sensor, check wiring!");
     delay(500);
   }
-  accelerometro.setRange(ADXL345_RANGE_2G);
+  accelerometro.setRange(ADXL345_RANGE_16G);
   Serial.println("La memoria SD e' stata letta con successo");
 }
 void inAllarm(){  
@@ -199,7 +202,6 @@ bool loadConfig(){
         lat = (double)root["lat"];
         lon = (double)root["lon"];
         bluetooth = (bool)root["bluetooth"];
-        precision = (int)root["precision"];
         refresh_config = ora.unixtime();
         return true;
       }else{
@@ -231,7 +233,7 @@ String getValue(String data, const char separator, int index){
 //verifica sel a configurazione del file è valida
 bool isValidConf(JsonObject& root){
   int j = 0;
-  char *my_param[] = {"status", "allarm", "debug", "wifi_mode", "my_ssid", "password", "dhcp", "ip_v4", "gateway", "subnet_mask", "my_id", "server_query", "user", "pwd", "lat", "lon", "bluetooth", "precision","\n"};
+  char *my_param[] = {"status", "allarm", "debug", "wifi_mode", "my_ssid", "password", "dhcp", "ip_v4", "gateway", "subnet_mask", "my_id", "server_query", "user", "pwd", "lat", "lon", "bluetooth","\n"};
   bool error = false;
   while(my_param[j] != "\n"){    
     if(!root.containsKey(my_param[j]))    
@@ -266,7 +268,6 @@ void setConfig(){
   root["lat"] = double_with_n_digits(lat, 8);
   root["lon"] = double_with_n_digits(lon, 8);
   root["bluetooth"] = bluetooth;
-  root["precision"] = precision;
   
   root.prettyPrintTo(conf);
   conf.close();
@@ -346,14 +347,12 @@ void printValues(){
   Serial.println(lon);
   Serial.print("bluetooth=");  
   Serial.println(bluetooth);
-  Serial.print("precision=");
-  Serial.println(precision);
 } 
 
 void loop() {    
   ora = rtc.now();
-  Serial.println(in_allarm);
-  Serial.println(ora.unixtime());
+  //Serial.println(in_allarm);
+  //Serial.println(ora.unixtime());
   if(analogRead(PIN_BTN1) > 150){
     setStatus(!stats);
   }
@@ -425,45 +424,69 @@ void loop() {
     //[ ] uploadare il server (via php i file raccolti per ora)
   }  
   Vector norm = accelerometro.readNormalize();
-  
-  Serial.println(count_acc);
-  if(count_acc >= 5){
+  if(count_acc >= 3){
     if(!in_allarm){
       x = x/count_acc;
       y = y/count_acc;
       z = z/count_acc;
       
-      Serial.print("x=");
-      Serial.println(x);
-      
-      Serial.print("y=");
-      Serial.println(y);
-      
-      Serial.print("z=");
-      Serial.println(z);
-
-      
-      Serial.print("last_x=");
-      Serial.println(last_x);
-      
-      Serial.print("last_y=");
-      Serial.println(last_y);
-      
-      Serial.print("last_z=");
-      Serial.println(z);
-      
-      double range = 0.10 * precision;
-      if(calibrato && (x >= last_x + range || x <= last_x - range))
+      /*if(calibrato && (x >= last_x + range || x <= last_x - range))
         in_allarm = true;
       if(calibrato && (y >= last_y + range || y <= last_y - range))
         in_allarm = true;  
       if(calibrato && (z >= last_z + range || z <= last_z - range))
-        in_allarm = true;
+        in_allarm = true;*/
+      //if(last_x < 0)
+        //last_x = -(last_x);
+      /*if(x < 0)
+        x = -(x);
+      //if(last_y < 0)
+        //last_y = -(last_y);
+      if(y < 0)
+        y = -(y);
+      //if(last_z < 0)
+//        last_z = -(last_z);
+      if(z < 0)
+        z = -(z);  */
+      /*x = (last_x - x);
+      y = (last_y - y);
+      z = (last_z -z);*/
+      double x1 = (last_x - x);
+      if(x1 < 0)
+        x1 = -x1;
+      double y1 = (last_y - y);
+      if(y1 < 0)
+        y1 = -y1;
+      double z1 = (last_z -z);
+      if(z1 < 0)
+        z1 = -z1;
+  
+  g_x = sqrt(x1*x1);
+  g_y = sqrt(y1*y1);
+
+  g_z = sqrt(z1*z1);
+  
+        Serial.print("sqrt= ");
+        Serial.println((g_x+g_y+g_z));
+
+        Serial.print(g_x);
+        Serial.print(", ");
+        Serial.print(g_y);
+        Serial.print(", ");
+        Serial.print(g_z);
+        Serial.print(", ");
+        /*Serial.print((float)xg,2);
+        Serial.print("g,");
+        Serial.print((float)yg,2);
+        Serial.print("g,");
+        Serial.print((float)zg,2);
+        Serial.println("g"); */
+        
       if(!calibrato){
         last_x = x;
         last_y = y;
         last_z = z;
-        calibrato = true;
+       // calibrato = true;
       }
       x = 0;
       y = 0;
