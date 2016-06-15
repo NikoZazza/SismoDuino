@@ -70,6 +70,7 @@ double g_x = 0.00; //forze g calcolate tramite l'accelerazione
 double g_y = 0.00;
 double g_z = 0.00;
 
+File las_file;
 void setup() {  
   Serial.begin(9600);
   pinMode(PIN_BTN2, OUTPUT);
@@ -292,8 +293,33 @@ void execCmd(String cmd){
 }
 //funzione che memorizza le forze g in file csv
 void memorizza(double x, double y, double z){
-  if(SD.)
+  ora = rtc.now();
+  if(!SD.exists("database/"))
+    SD.mkdir("database/");
+  if(!SD.exists("database/")){
+    Serial.println("Scheda SD non presente!");
+    in_error = true;
+    return;
+  }
+//  char *dir = "database/"+((char)ora.year())+"/";
+  
+  
+  String dir = "database/"+String(ora.year())+"/"+String(ora.month())+"/"+String(ora.day())+"/";
+  char buf[50];
+  dir.toCharArray(buf, 50);
+  if(!SD.exists(buf))
+    SD.mkdir(buf);  
+  dir += String(ora.hour())+".csv";
+  char nome[50];
+  dir.toCharArray(nome, 50);
 
+  //vedo se il nome del file memorizzato coincide con quello che devo memorizzare. se coincide continuo ad aggiungere righe, altrimenti ne creo uno nuovo
+  if(!SD.exists(nome)){
+    Serial.println("non esiste");
+    //lo creo e memorizzo il nome del file
+  }
+    
+  Serial.println(nome);
 }
 
 void printValues(){
@@ -358,6 +384,11 @@ void loop() {
   if(analogRead(PIN_BTN1) > 150){
     setStatus(!stats);
   }
+  if(!in_allarm){
+    analogWrite(PIN_BUZZ, 0);
+    volume = 0;
+  }
+
   if(!stats){
     delay(100);  
     return;
@@ -374,10 +405,6 @@ void loop() {
     }
     if(allarm)
       inAllarm();  
-  }
-  if(!in_allarm){
-    analogWrite(PIN_BUZZ, 0);
-    volume = 0;
   }
   if(in_error && stats){
     analogWrite(PIN_LED, 0);  
@@ -421,7 +448,7 @@ void loop() {
     //[ ] basso consumo
     //[X] leggere il sensore di accelerazione (ADXl345)
     //[X] rilevare attività
-    //[ ] scrivere il datalog (raccolto in Database/Anno/Mese/Giorno/Ora.csv) . Se non è presente allora fare errore con buzzer
+    //[V] scrivere il datalog (raccolto in Database/Anno/Mese/Giorno/Ora.csv) . Se non è presente allora fare errore con buzzer
     //[ ] disattivare l'allarme dopo 1 minuto
     //[ ] aggiornare il timestamp della RTC via WEB
     //[ ] uploadare il client 
