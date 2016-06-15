@@ -37,7 +37,7 @@ DateTime ora; //ora corrente del sensore RTC
 int refresh_config = 0; //quando è stata caricata la configurazione
 
 bool stats = true; //se il sistema è acceso(true)
-bool allarm = true; //se l'allarme è accesso(true)
+bool allarm = false; //se l'allarme è accesso(true)
 bool in_allarm = false; //se l'allarme sta suonando
 bool in_error = false; //se è presente qualche errore nel sistema allora il led di accensione lampeggia
 
@@ -59,16 +59,14 @@ double lon = 0.0;
 bool bluetooth = false;
 
 //accelerometro
-double x = 0.00;
+double x = 0.00; //valori prelevati in tempo reale
 double y = 0.00;
 double z = 0.00;
 int count_acc = 0; //contatore accelerometro, se è 3 allora fa la media e controlla con i valori calibrati
-bool calibrato = false;
-double last_x = 0.00; 
+double last_x = 0.00;  //valori su cui si verifica se c'è un'accelerazione
 double last_y = 0.00;
 double last_z = 0.00;
-
-double g_x = 0.00; //forza G in vari punti
+double g_x = 0.00; //forze g calcolate tramite l'accelerazione
 double g_y = 0.00;
 double g_z = 0.00;
 
@@ -96,14 +94,15 @@ void setup() {
     in_error = true;
     return;
   }  
-  if(!accelerometro.begin())
-  {
-    Serial.println("Could not find a valid ADXL345 sensor, check wiring!");
+  if(!accelerometro.begin()){
+    Serial.println("il sensore ADX345(accelerometro) non è stato trovato!");
     delay(500);
   }
   accelerometro.setRange(ADXL345_RANGE_16G);
   Serial.println("La memoria SD e' stata letta con successo");
+  delay(3000);
 }
+//funzione che accende il buzzer e il led quando l'allarme è attivato
 void inAllarm(){  
   if(direction_vol && volume <= 20)
     volume++;
@@ -128,8 +127,7 @@ void setStatus(bool var){
     analogWrite(PIN_LED, 0);
     Serial.println("OFF");
     in_allarm = false;
-    allarm = true;
-        
+    allarm = true;        
   }  
   delay(200);   
 }
@@ -292,7 +290,11 @@ void execCmd(String cmd){
     printValues();  
   }  
 }
+//funzione che memorizza le forze g in file csv
+void memorizza(double x, double y, double z){
+  if(SD.)
 
+}
 
 void printValues(){
   Serial.print("my_key=");  
@@ -356,19 +358,21 @@ void loop() {
   if(analogRead(PIN_BTN1) > 150){
     setStatus(!stats);
   }
-  if(digitalRead(PIN_BTN2) == HIGH && !in_allarm && stats){
+  if(!stats){
+    delay(100);  
+    return;
+  }
+  if(digitalRead(PIN_BTN2) == HIGH && !in_allarm){
     delay(100);
     if(digitalRead(PIN_BTN2) == HIGH)
       setAllarm(!allarm);
-    calibrato = false;
   }
-  if(in_allarm && stats){
+  if(in_allarm){
     Serial.println("=====================ALLARME==========================");
     if(digitalRead(PIN_BTN2) == HIGH){
       in_allarm = false;
-      calibrato = false;
     }
-    if(!allarm)
+    if(allarm)
       inAllarm();  
   }
   if(!in_allarm){
@@ -417,54 +421,35 @@ void loop() {
     //[ ] basso consumo
     //[X] leggere il sensore di accelerazione (ADXl345)
     //[X] rilevare attività
-    //[ ] scrivere il datalog (raccolto in Database/Anno/Mese/Giorno/Ora.txt) . Se non è presente allora fare errore con buzzer
-    
+    //[ ] scrivere il datalog (raccolto in Database/Anno/Mese/Giorno/Ora.csv) . Se non è presente allora fare errore con buzzer
+    //[ ] disattivare l'allarme dopo 1 minuto
     //[ ] aggiornare il timestamp della RTC via WEB
     //[ ] uploadare il client 
     //[ ] uploadare il server (via php i file raccolti per ora)
   }  
   Vector norm = accelerometro.readNormalize();
   if(count_acc >= 3){
-    if(!in_allarm){
-      x = x/count_acc;
-      y = y/count_acc;
-      z = z/count_acc;
-      
-      /*if(calibrato && (x >= last_x + range || x <= last_x - range))
-        in_allarm = true;
-      if(calibrato && (y >= last_y + range || y <= last_y - range))
-        in_allarm = true;  
-      if(calibrato && (z >= last_z + range || z <= last_z - range))
-        in_allarm = true;*/
-      //if(last_x < 0)
-        //last_x = -(last_x);
-      /*if(x < 0)
-        x = -(x);
-      //if(last_y < 0)
-        //last_y = -(last_y);
-      if(y < 0)
-        y = -(y);
-      //if(last_z < 0)
-//        last_z = -(last_z);
-      if(z < 0)
-        z = -(z);  */
-      /*x = (last_x - x);
-      y = (last_y - y);
-      z = (last_z -z);*/
-      double x1 = (last_x - x);
-      if(x1 < 0)
-        x1 = -x1;
-      double y1 = (last_y - y);
-      if(y1 < 0)
-        y1 = -y1;
-      double z1 = (last_z -z);
-      if(z1 < 0)
-        z1 = -z1;
-  
-  g_x = sqrt(x1*x1);
-  g_y = sqrt(y1*y1);
-
-  g_z = sqrt(z1*z1);
+    x = x/count_acc;
+    y = y/count_acc;
+    z = z/count_acc;
+    
+    double x1 = (last_x - x);
+    if(x1 < 0)
+      x1 = -x1;
+    double y1 = (last_y - y);
+    if(y1 < 0)
+      y1 = -y1;
+    double z1 = (last_z - z);
+    if(z1 < 0)
+      z1 = -z1;
+    double g_x = sqrt(x1*x1); //forze g calcolate tramite l'accelerazione
+    double g_y = sqrt(y1*y1);
+    double g_z = sqrt(z1*z1);
+    double g_tot = (g_x+g_y+g_z);
+    memorizza(g_x, g_y, g_z);
+    if(g_tot > 0.39 && !(last_x == 0.00 && last_y == 0.00 && last_z == 0.00 )){ //scala mercalli livello 5
+      in_allarm = true;      
+    }      
   
         Serial.print("sqrt= ");
         Serial.println((g_x+g_y+g_z));
@@ -474,25 +459,14 @@ void loop() {
         Serial.print(g_y);
         Serial.print(", ");
         Serial.print(g_z);
-        Serial.print(", ");
-        /*Serial.print((float)xg,2);
-        Serial.print("g,");
-        Serial.print((float)yg,2);
-        Serial.print("g,");
-        Serial.print((float)zg,2);
-        Serial.println("g"); */
+        Serial.print(" ");
         
-      if(!calibrato){
-        last_x = x;
-        last_y = y;
-        last_z = z;
-       // calibrato = true;
-      }
-      x = 0;
-      y = 0;
-      z = 0;
-      
-    }
+    last_x = x;
+    last_y = y;
+    last_z = z;  
+    x = 0;
+    y = 0;
+    z = 0;          
     count_acc = 0;
   }
   if(norm.XAxis < 0)
