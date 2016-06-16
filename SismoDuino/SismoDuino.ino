@@ -34,7 +34,7 @@ int volume = 0; //volume dell'allarme
 bool direction_vol = true; //direzione volume, se è true incrementa
 
 DateTime ora; //ora corrente del sensore RTC
-int refresh_config = 0; //quando è stata caricata la configurazione
+int refresh_config = 0; //quando(data) è stata caricata la configurazione
 
 bool stats = true; //se il sistema è acceso(true)
 bool allarm = false; //se l'allarme è accesso(true)
@@ -69,6 +69,7 @@ double last_z = 0.00;
 double g_x = 0.00; //forze g calcolate tramite l'accelerazione
 double g_y = 0.00;
 double g_z = 0.00;
+double g_tot = 0.00;
 
 File las_file;
 void setup() {  
@@ -292,7 +293,7 @@ void execCmd(String cmd){
   }  
 }
 //funzione che memorizza le forze g in file csv
-void memorizza(double x, double y, double z){
+void memorizza(){
   ora = rtc.now();
   if(!SD.exists("database/"))
     SD.mkdir("database/");
@@ -300,26 +301,31 @@ void memorizza(double x, double y, double z){
     Serial.println("Scheda SD non presente!");
     in_error = true;
     return;
-  }
-//  char *dir = "database/"+((char)ora.year())+"/";
-  
-  
+  }  
   String dir = "database/"+String(ora.year())+"/"+String(ora.month())+"/"+String(ora.day())+"/";
-  char buf[50];
-  dir.toCharArray(buf, 50);
+  char buf[25];
+  dir.toCharArray(buf, 25);
   if(!SD.exists(buf))
     SD.mkdir(buf);  
   dir += String(ora.hour())+".csv";
-  char nome[50];
-  dir.toCharArray(nome, 50);
-
-  //vedo se il nome del file memorizzato coincide con quello che devo memorizzare. se coincide continuo ad aggiungere righe, altrimenti ne creo uno nuovo
+  char nome[35];
+  dir.toCharArray(nome, 35);
+  
+  bool nuovo = false;
   if(!SD.exists(nome)){
-    Serial.println("non esiste");
-    //lo creo e memorizzo il nome del file
+    nuovo = true;
   }
-    
-  Serial.println(nome);
+  File file = SD.open(nome, FILE_WRITE);
+  if(file){
+    String pvt = String(ora.unixtime())+";"+String(g_x, 3)+";"+String(g_y, 3)+";"+String(g_z, 3)+";"+String(g_tot)+";";
+    pvt.replace(".", ",");
+    char pvt_in[40];
+    pvt.toCharArray(pvt_in, 40);    
+    if(nuovo)
+      file.println("Ora Unixtime;Forza G(X);Forza G(Y);Forza G(Z);Forza G Totale;");    
+    file.println(pvt_in);  
+    file.close(); 
+  }
 }
 
 void printValues(){
@@ -384,6 +390,13 @@ void loop() {
   if(analogRead(PIN_BTN1) > 150){
     setStatus(!stats);
   }
+  if(in_error && stats){
+    analogWrite(PIN_LED, 0);  
+    delay(150);
+    analogWrite(PIN_LED, 255);  
+    delay(150);
+    return;
+  }
   if(!in_allarm){
     analogWrite(PIN_BUZZ, 0);
     volume = 0;
@@ -406,12 +419,7 @@ void loop() {
     if(allarm)
       inAllarm();  
   }
-  if(in_error && stats){
-    analogWrite(PIN_LED, 0);  
-    delay(150);
-    analogWrite(PIN_LED, 255);  
-    delay(150);
-  }
+  
   String received = "";
   bool getCmd = false;
   while(Serial.available() > 0){
@@ -448,7 +456,8 @@ void loop() {
     //[ ] basso consumo
     //[X] leggere il sensore di accelerazione (ADXl345)
     //[X] rilevare attività
-    //[V] scrivere il datalog (raccolto in Database/Anno/Mese/Giorno/Ora.csv) . Se non è presente allora fare errore con buzzer
+    //[V] scrivere il datalog (raccolto in Database/Anno/Mese/Giorno/Ora.csv)
+    //[ ] eliminare i dati piu vecchi di 8 mesi
     //[ ] disattivare l'allarme dopo 1 minuto
     //[ ] aggiornare il timestamp della RTC via WEB
     //[ ] uploadare il client 
@@ -469,15 +478,16 @@ void loop() {
     double z1 = (last_z - z);
     if(z1 < 0)
       z1 = -z1;
-    double g_x = sqrt(x1*x1); //forze g calcolate tramite l'accelerazione
-    double g_y = sqrt(y1*y1);
-    double g_z = sqrt(z1*z1);
-    double g_tot = (g_x+g_y+g_z);
-    memorizza(g_x, g_y, g_z);
-    if(g_tot > 0.39 && !(last_x == 0.00 && last_y == 0.00 && last_z == 0.00 )){ //scala mercalli livello 5
-      in_allarm = true;      
-    }      
-  
+    g_x = sqrt(x1*x1); //forze g calcolate tramite l'accelerazione
+    g_y = sqrt(y1*y1);
+    g_z = sqrt(z1*z1);
+    g_tot = (g_x+g_y+g_z);
+    if(!(last_x == 0.00 && last_y == 0.00 && last_z == 0.00 )){
+      memorizza();
+      if(g_tot > 0.39){ //scala mercalli livello 5
+        in_allarm = true;   
+      }      
+    }
         Serial.print("sqrt= ");
         Serial.println((g_x+g_y+g_z));
 
