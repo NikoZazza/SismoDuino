@@ -37,10 +37,10 @@ DateTime ora; //ora corrente del sensore RTC
 int refresh_config = 0; //quando(data) è stata caricata la configurazione
 
 bool stats = true; //se il sistema è acceso(true)
-bool allarm = false; //se l'allarme è accesso(true)
+bool allarm = true; //se l'allarme è accesso(true)
 bool in_allarm = false; //se l'allarme sta suonando
 bool in_error = false; //se è presente qualche errore nel sistema allora il led di accensione lampeggia
-
+int time_allarm = 0; //la data in cui è stato attivato l'allarme 
 //config
 int my_id = 0;
 bool debug = false;
@@ -71,14 +71,13 @@ double g_y = 0.00;
 double g_z = 0.00;
 double g_tot = 0.00;
 
-File las_file;
 void setup() {  
   Serial.begin(9600);
   pinMode(PIN_BTN2, OUTPUT);
   pinMode(PIN_BUZZ, OUTPUT);
   pinMode(PIN_LED, OUTPUT);
   
-  analogWrite(PIN_LED, 100);
+  analogWrite(PIN_LED, 20);
   analogWrite(PIN_BUZZ, 0);
 
   if(!SD.begin()){
@@ -103,6 +102,10 @@ void setup() {
   accelerometro.setRange(ADXL345_RANGE_16G);
   Serial.println("La memoria SD e' stata letta con successo");
   delay(3000);
+  analogWrite(PIN_LED, 120);
+  analogWrite(PIN_BUZZ, 255);
+  delay(50);
+  analogWrite(PIN_BUZZ, 0);
 }
 //funzione che accende il buzzer e il led quando l'allarme è attivato
 void inAllarm(){  
@@ -400,26 +403,33 @@ void loop() {
   if(!in_allarm){
     analogWrite(PIN_BUZZ, 0);
     volume = 0;
+    time_allarm = 0;
   }
 
   if(!stats){
     delay(100);  
     return;
   }
+    
   if(digitalRead(PIN_BTN2) == HIGH && !in_allarm){
     delay(100);
     if(digitalRead(PIN_BTN2) == HIGH)
       setAllarm(!allarm);
   }
   if(in_allarm){
+    if(time_allarm == 0){
+      time_allarm = ora.unixtime();  
+    }else if(ora.unixtime() > time_allarm + 60){ //faccio durare l'allarme per 1 minuto
+      in_allarm = false;  
+    }    
     Serial.println("=====================ALLARME==========================");
     if(digitalRead(PIN_BTN2) == HIGH){
       in_allarm = false;
     }
-    if(allarm)
+    if(allarm && in_allarm)
       inAllarm();  
   }
-  
+     
   String received = "";
   bool getCmd = false;
   while(Serial.available() > 0){
@@ -456,10 +466,11 @@ void loop() {
     //[ ] basso consumo
     //[X] leggere il sensore di accelerazione (ADXl345)
     //[X] rilevare attività
-    //[V] scrivere il datalog (raccolto in Database/Anno/Mese/Giorno/Ora.csv)
+    //[X] scrivere il datalog (raccolto in Database/Anno/Mese/Giorno/Ora.csv)
     //[ ] eliminare i dati piu vecchi di 8 mesi
-    //[ ] disattivare l'allarme dopo 1 minuto
+    //[X] disattivare l'allarme dopo 1 minuto
     //[ ] aggiornare il timestamp della RTC via WEB
+    //[ ] prendere id dal server
     //[ ] uploadare il client 
     //[ ] uploadare il server (via php i file raccolti per ora)
   }  
@@ -487,17 +498,7 @@ void loop() {
       if(g_tot > 0.39){ //scala mercalli livello 5
         in_allarm = true;   
       }      
-    }
-        Serial.print("sqrt= ");
-        Serial.println((g_x+g_y+g_z));
-
-        Serial.print(g_x);
-        Serial.print(", ");
-        Serial.print(g_y);
-        Serial.print(", ");
-        Serial.print(g_z);
-        Serial.print(" ");
-        
+    }        
     last_x = x;
     last_y = y;
     last_z = z;  
