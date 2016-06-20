@@ -22,6 +22,9 @@
 #include <ArduinoJson.h>
 #include "RTClib.h"
 #include <ADXL345.h>
+#include <ESP8266WiFi.h>
+#include <WiFiClient.h> 
+#include <ESP8266WebServer.h>
 
 ADXL345 accelerometro;
 RTC_DS1307 rtc;
@@ -43,20 +46,18 @@ bool in_error = false; //se è presente qualche errore nel sistema allora il led
 int time_allarm = 0; //la data in cui è stato attivato l'allarme 
 //config
 int my_id = 0;
-bool debug = false;
 int wifi_mode = 2;
-const char *ssid = "SismoDuino-WiFi";
-const char *password = "sismoduino";
+String ssid = "SismoDuino-WiFi";
+String password = "sismoduino";
 bool dhcp = true;
 int ip[] = {192, 168, 1, 4};
 int gateway[] = {192, 168, 1, 1};
 int subnet_mask[] = {255, 255, 255, 0};
-const char *server_query = "http://sismoduino.altervista.org/";
-const char *user = "guest";
-const char *pwd = "guest";
+String server_query = "http://sismoduino.altervista.org/";
+String user = "guest";
+String pwd = "guest";
 double lat = 0.0;
 double lon = 0.0;
-bool bluetooth = false;
 
 //accelerometro
 double x = 0.00; //valori prelevati in tempo reale
@@ -101,11 +102,8 @@ void setup() {
   }
   accelerometro.setRange(ADXL345_RANGE_16G);
   Serial.println("La memoria SD e' stata letta con successo");
-  delay(3000);
+  delay(1000);
   analogWrite(PIN_LED, 120);
-  analogWrite(PIN_BUZZ, 255);
-  delay(50);
-  analogWrite(PIN_BUZZ, 0);
 }
 //funzione che accende il buzzer e il led quando l'allarme è attivato
 void inAllarm(){  
@@ -132,7 +130,7 @@ void setStatus(bool var){
     analogWrite(PIN_LED, 0);
     Serial.println("OFF");
     in_allarm = false;
-    allarm = true;        
+    allarm = false;     
   }  
   delay(200);   
 }
@@ -177,7 +175,6 @@ bool loadConfig(){
       if(isValidConf(root)){ //la configurazione è valida
         stats = (bool)root["status"];
         allarm = (bool)root["allarm"];
-        debug = (bool)root["debug"];
         wifi_mode = (int)root["wifi_mode"];
         ssid = root["my_ssid"].asString();
         password = root["password"].asString();
@@ -204,7 +201,6 @@ bool loadConfig(){
         pwd = root["pwd"].asString();
         lat = (double)root["lat"];
         lon = (double)root["lon"];
-        bluetooth = (bool)root["bluetooth"];
         refresh_config = ora.unixtime();
         return true;
       }else{
@@ -236,7 +232,7 @@ String getValue(String data, const char separator, int index){
 //verifica sel a configurazione del file è valida
 bool isValidConf(JsonObject& root){
   int j = 0;
-  char *my_param[] = {"status", "allarm", "debug", "wifi_mode", "my_ssid", "password", "dhcp", "ip_v4", "gateway", "subnet_mask", "my_id", "server_query", "user", "pwd", "lat", "lon", "bluetooth","\n"};
+  char *my_param[] = {"status", "allarm", "wifi_mode", "my_ssid", "password", "dhcp", "ip_v4", "gateway", "subnet_mask", "my_id", "server_query", "user", "pwd", "lat", "lon", "\n"};
   bool error = false;
   while(my_param[j] != "\n"){    
     if(!root.containsKey(my_param[j]))    
@@ -256,7 +252,6 @@ void setConfig(){
   
   root["status"] = stats;
   root["allarm"] = allarm;
-  root["debug"] = debug;
   root["wifi_mode"] = wifi_mode;
   root["my_ssid"] = ssid;
   root["password"] = password;
@@ -270,7 +265,6 @@ void setConfig(){
   root["pwd"] = pwd;
   root["lat"] = double_with_n_digits(lat, 8);
   root["lon"] = double_with_n_digits(lon, 8);
-  root["bluetooth"] = bluetooth;
   
   root.prettyPrintTo(conf);
   conf.close();
@@ -294,6 +288,12 @@ void execCmd(String cmd){
   if(cmd == "print" || getValue(cmd, ' ', 0) == "print"){
     printValues();  
   }  
+  if(cmd == "set" ||  getValue(cmd, ' ', 0) == "set"){
+    if(wifi_mode == 2)
+      wifi_mode = 1;  
+      else
+      wifi_mode = 2;   
+  }
 }
 //funzione che memorizza le forze g in file csv
 void memorizza(){
@@ -337,9 +337,7 @@ void printValues(){
   Serial.print("stats=");  
   Serial.println(stats);  
   Serial.print("allarm=");  
-  Serial.println(allarm);  
-  Serial.print("debug=");  
-  Serial.println(debug);  
+  Serial.println(allarm); 
   Serial.print("wifi_mode=");  
   Serial.println(wifi_mode);
   Serial.print("my_ssid=");  
@@ -382,32 +380,97 @@ void printValues(){
   Serial.println(lat);
   Serial.print("lon=");  
   Serial.println(lon);
-  Serial.print("bluetooth=");  
-  Serial.println(bluetooth);
 } 
+ESP8266WebServer server(80);
+void handleRoot() {
+  server.send(200, "text/html", "<h1>You are connected</h1>");
+}
+bool wifi_started1 = false;
+bool wifi_started2 = false;
+void wifiConnect(){
+  switch(wifi_mode){
+    case 0: //nessun wifi
+      WiFi.mode(WIFI_OFF);
+      return;
+    case 1: //wifi connessione al router
+      if(wifi_started1){        
+        if(wifi_started2){
+          WiFi.mode(WIFI_STA);
+          wifi_started2 = false;
+          return;
+        }
+        server.handleClient();
+      }else{
+        WiFi.begin(ssid.c_str(), password.c_str());
+        int i = 0;
+        while (WiFi.status() != WL_CONNECTED) {
+          delay(500);
+          i++;
+          Serial.print(".");
+          if(i >= 20){
+            Serial.println("Problemi con la connessione di rete.");  
+            in_error = true;
+            return;
+          }
+        }
+        if(!dhcp)
+            WiFi.config(IPAddress(ip[0], ip[1], ip[2], ip[3]), IPAddress(gateway[0], gateway[1], gateway[2], gateway[3]), IPAddress(subnet_mask[0], subnet_mask[1], subnet_mask[2], subnet_mask[3]));
+        Serial.print("IP address: ");
+        Serial.println(WiFi.localIP());
+        server.on("/", handleRoot);
+        server.begin();
+        wifi_started1 = true;
+      }
+      return;
+    case 2: //wifi AP
+      if(wifi_started2){        
+        if(wifi_started1){
+          WiFi.mode(WIFI_AP);
+          wifi_started1 = false;
+          return;
+        }
+        server.handleClient();
+      }else{
+        WiFi.softAP(ssid.c_str(), password.c_str());
+        Serial.println(dhcp);       
+        if(!dhcp)
+          WiFi.softAPConfig(IPAddress(ip[0], ip[1], ip[2], ip[3]), IPAddress(gateway[0], gateway[1], gateway[2], gateway[3]), IPAddress(subnet_mask[0], subnet_mask[1], subnet_mask[2], subnet_mask[3]));
+        IPAddress myIP = WiFi.softAPIP();
+        Serial.print("AP IP address: ");
+        Serial.println(myIP);
+        server.on("/", handleRoot);
+        server.begin();
+        Serial.println("HTTP server started");
+        wifi_started2 = true;
+      }
+      return;   
+  }    
+}
 
 void loop() {    
   ora = rtc.now();
-  //Serial.println(in_allarm);
   //Serial.println(ora.unixtime());
   if(analogRead(PIN_BTN1) > 150){
     setStatus(!stats);
-  }
-  if(in_error && stats){
-    analogWrite(PIN_LED, 0);  
-    delay(150);
-    analogWrite(PIN_LED, 255);  
-    delay(150);
-    return;
   }
   if(!in_allarm){
     analogWrite(PIN_BUZZ, 0);
     volume = 0;
     time_allarm = 0;
   }
+  if(in_error && stats){
+    analogWrite(PIN_LED, 0);  
+    delay(150);
+    analogWrite(PIN_LED, 255);  
+    delay(150);
+    WiFi.mode(WIFI_OFF);
+    in_allarm = false;
+    return;
+  }
 
   if(!stats){
     delay(100);  
+    WiFi.mode(WIFI_OFF);
     return;
   }
     
@@ -449,6 +512,7 @@ void loop() {
      * [ ] get (tutti i campi)
      */
   }
+  
   if(stats && !in_error){
     if(ora.unixtime() > (refresh_config + 60*5)){ //ricarica la configurazione ogni 5 minuti
       if(!loadConfig()){
@@ -457,13 +521,15 @@ void loop() {
         return;
       }
     }
+    wifiConnect();
     
     //[X] calibrazione accelerometro tramite il pulsante allarme
     //[X] leggere la configurazione da SD (config.json)
     //[X] refresh della configurazione ogni 5 minuti
     //[X] leggere il timestamp della RTC
-    //[ ] aprire la connessione di rete (Wifi client o Wifi router)
+    //[X] aprire la connessione di rete (STA o AP)
     //[ ] basso consumo
+    //[ ] aggiornare la configurazione quando si premono i btn
     //[X] leggere il sensore di accelerazione (ADXl345)
     //[X] rilevare attività
     //[X] scrivere il datalog (raccolto in Database/Anno/Mese/Giorno/Ora.csv)
@@ -519,7 +585,6 @@ void loop() {
     z -= -norm.ZAxis;
   else
     z += norm.ZAxis;
-  count_acc++;
-  
+  count_acc++;  
   delay(100);
 }
