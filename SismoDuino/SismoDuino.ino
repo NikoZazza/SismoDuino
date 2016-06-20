@@ -45,7 +45,7 @@ bool in_allarm = false; //se l'allarme sta suonando
 bool in_error = false; //se è presente qualche errore nel sistema allora il led di accensione lampeggia
 int time_allarm = 0; //la data in cui è stato attivato l'allarme 
 //config
-int my_id = 0;
+int my_id = ESP.getChipId();
 int wifi_mode = 2;
 String ssid = "SismoDuino-WiFi";
 String password = "sismoduino";
@@ -71,6 +71,11 @@ double g_x = 0.00; //forze g calcolate tramite l'accelerazione
 double g_y = 0.00;
 double g_z = 0.00;
 double g_tot = 0.00;
+
+//WiFi
+ESP8266WebServer server(80);
+bool wifi_started1 = false;
+bool wifi_started2 = false;
 
 void setup() {  
   Serial.begin(9600);
@@ -195,7 +200,6 @@ bool loadConfig(){
         subnet_mask[2] = getValue(root["subnet_mask"], '.', 2).toInt();
         subnet_mask[3] = getValue(root["subnet_mask"], '.', 3).toInt();
         
-        my_id =(int) root["my_id"];
         server_query = root["server_query"].asString();
         user = root["user"].asString();
         pwd = root["pwd"].asString();
@@ -232,7 +236,7 @@ String getValue(String data, const char separator, int index){
 //verifica sel a configurazione del file è valida
 bool isValidConf(JsonObject& root){
   int j = 0;
-  char *my_param[] = {"status", "allarm", "wifi_mode", "my_ssid", "password", "dhcp", "ip_v4", "gateway", "subnet_mask", "my_id", "server_query", "user", "pwd", "lat", "lon", "\n"};
+  char *my_param[] = {"status", "allarm", "wifi_mode", "my_ssid", "password", "dhcp", "ip_v4", "gateway", "subnet_mask", "server_query", "user", "pwd", "lat", "lon", "\n"};
   bool error = false;
   while(my_param[j] != "\n"){    
     if(!root.containsKey(my_param[j]))    
@@ -246,6 +250,8 @@ bool isValidConf(JsonObject& root){
 
 //imposta i valori di default per la configurazione
 void setConfig(){
+  if(SD.exists("CONFIG.JSO"))
+    SD.remove("CONFIG.JSO");
   File conf = SD.open("CONFIG.JSO", FILE_WRITE);
   StaticJsonBuffer<1024> jsonBuffer;
   JsonObject& root = jsonBuffer.createObject();
@@ -259,7 +265,6 @@ void setConfig(){
   root["ip_v4"] = addressToChar(ip[0], ip[1], ip[2], ip[3]);
   root["gateway"] = addressToChar(gateway[0], gateway[1], gateway[2], gateway[3]);
   root["subnet_mask"] = addressToChar(subnet_mask[0], subnet_mask[1], subnet_mask[2], subnet_mask[3]);
-  root["my_id"] = my_id;
   root["server_query"] = server_query;
   root["user"] = user;
   root["pwd"] = pwd;
@@ -331,9 +336,7 @@ void memorizza(){
   }
 }
 
-void printValues(){
-  Serial.print("my_key=");  
-  Serial.println(my_id);  
+void printValues(){  
   Serial.print("stats=");  
   Serial.println(stats);  
   Serial.print("allarm=");  
@@ -381,12 +384,7 @@ void printValues(){
   Serial.print("lon=");  
   Serial.println(lon);
 } 
-ESP8266WebServer server(80);
-void handleRoot() {
-  server.send(200, "text/html", "<h1>You are connected</h1>");
-}
-bool wifi_started1 = false;
-bool wifi_started2 = false;
+
 void wifiConnect(){
   switch(wifi_mode){
     case 0: //nessun wifi
@@ -404,20 +402,20 @@ void wifiConnect(){
         WiFi.begin(ssid.c_str(), password.c_str());
         int i = 0;
         while (WiFi.status() != WL_CONNECTED) {
-          delay(500);
           i++;
           Serial.print(".");
-          if(i >= 20){
+          if(i >= 30){
             Serial.println("Problemi con la connessione di rete.");  
             in_error = true;
             return;
           }
+          delay(500);
         }
         if(!dhcp)
             WiFi.config(IPAddress(ip[0], ip[1], ip[2], ip[3]), IPAddress(gateway[0], gateway[1], gateway[2], gateway[3]), IPAddress(subnet_mask[0], subnet_mask[1], subnet_mask[2], subnet_mask[3]));
         Serial.print("IP address: ");
         Serial.println(WiFi.localIP());
-        server.on("/", handleRoot);
+        server.onNotFound(handleNotFound);
         server.begin();
         wifi_started1 = true;
       }
@@ -438,13 +436,66 @@ void wifiConnect(){
         IPAddress myIP = WiFi.softAPIP();
         Serial.print("AP IP address: ");
         Serial.println(myIP);
-        server.on("/", handleRoot);
+        server.onNotFound(handleNotFound);
         server.begin();
         Serial.println("HTTP server started");
         wifi_started2 = true;
       }
       return;   
   }    
+}
+
+bool loadFromSdCard(String path){
+  String dataType = "text/plain";
+  if(path.endsWith("/")) path += "index.htm";
+
+  if(path.endsWith(".src")) path = path.substring(0, path.lastIndexOf("."));
+  else if(path.endsWith(".htm")) dataType = "text/html";
+  else if(path.endsWith(".css")) dataType = "text/css";
+  else if(path.endsWith(".js")) dataType = "application/javascript";
+  else if(path.endsWith(".png")) dataType = "image/png";
+  else if(path.endsWith(".gif")) dataType = "image/gif";
+  else if(path.endsWith(".jpg")) dataType = "image/jpeg";
+  else if(path.endsWith(".ico")) dataType = "image/x-icon";
+  else if(path.endsWith(".xml")) dataType = "text/xml";
+  else if(path.endsWith(".pdf")) dataType = "application/pdf";
+  else if(path.endsWith(".zip")) dataType = "application/zip";
+
+  File dataFile = SD.open(path.c_str());
+  if(dataFile.isDirectory()){
+    path += "/index.htm";
+    dataType = "text/html";
+    dataFile = SD.open(path.c_str());
+  }
+
+  if (!dataFile)
+    return false;
+
+  if (server.hasArg("download")) dataType = "application/octet-stream";
+
+  if (server.streamFile(dataFile, dataType) != dataFile.size()) {
+    Serial.println("Sent less data than expected!");
+  }
+
+  dataFile.close();
+  return true;
+}
+
+void handleNotFound(){
+  if(loadFromSdCard(server.uri())) return;
+  String message = "SDCARD Not Detected\n\n";
+  message += "URI: ";
+  message += server.uri();
+  message += "\nMethod: ";
+  message += (server.method() == HTTP_GET)?"GET":"POST";
+  message += "\nArguments: ";
+  message += server.args();
+  message += "\n";
+  for (uint8_t i=0; i<server.args(); i++){
+    message += " NAME:"+server.argName(i) + "\n VALUE:" + server.arg(i) + "\n";
+  }
+  server.send(404, "text/plain", message);
+  Serial.print(message);
 }
 
 void loop() {    
@@ -476,8 +527,10 @@ void loop() {
     
   if(digitalRead(PIN_BTN2) == HIGH && !in_allarm){
     delay(100);
-    if(digitalRead(PIN_BTN2) == HIGH)
+    if(digitalRead(PIN_BTN2) == HIGH){
       setAllarm(!allarm);
+      setConfig();
+    }
   }
   if(in_allarm){
     if(time_allarm == 0){
@@ -522,23 +575,6 @@ void loop() {
       }
     }
     wifiConnect();
-    
-    //[X] calibrazione accelerometro tramite il pulsante allarme
-    //[X] leggere la configurazione da SD (config.json)
-    //[X] refresh della configurazione ogni 5 minuti
-    //[X] leggere il timestamp della RTC
-    //[X] aprire la connessione di rete (STA o AP)
-    //[ ] basso consumo
-    //[ ] aggiornare la configurazione quando si premono i btn
-    //[X] leggere il sensore di accelerazione (ADXl345)
-    //[X] rilevare attività
-    //[X] scrivere il datalog (raccolto in Database/Anno/Mese/Giorno/Ora.csv)
-    //[ ] eliminare i dati piu vecchi di 8 mesi
-    //[X] disattivare l'allarme dopo 1 minuto
-    //[ ] aggiornare il timestamp della RTC via WEB
-    //[ ] prendere id dal server
-    //[ ] uploadare il client 
-    //[ ] uploadare il server (via php i file raccolti per ora)
   }  
   Vector norm = accelerometro.readNormalize();
   if(count_acc >= 3){
