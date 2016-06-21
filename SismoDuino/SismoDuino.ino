@@ -310,14 +310,14 @@ void memorizza(){
     in_error = true;
     return;
   }  
-  String dir = "database/"+String(ora.year())+"/"+String(ora.month())+"/"+String(ora.day())+"/";
+  String dir = "database/"+String(ora.year())+"/";
   char buf[25];
   dir.toCharArray(buf, 25);
   if(!SD.exists(buf))
     SD.mkdir(buf);  
-  dir += String(ora.hour())+".csv";
-  char nome[35];
-  dir.toCharArray(nome, 35);
+  dir += String(ora.month())+"-"+String(ora.day())+"-"+String(ora.hour())+".csv";
+  char nome[50];
+  dir.toCharArray(nome, 50);
   
   bool nuovo = false;
   if(!SD.exists(nome)){
@@ -498,6 +498,41 @@ void handleNotFound(){
   Serial.print(message);
 }
 
+void pulisci(File dir, int anno  = 0) {
+  DateTime ora_del(rtc.now()-TimeSpan((60*60*24*365)));
+  int anno_del = ora_del.year();
+  int mese_del = ora_del.month();
+  if(!SD.exists("DATABASE/")){
+    Serial.println("non esiste");
+    return;
+  }
+  while(true){     
+    File entry = dir.openNextFile();
+    if(!entry){
+      break;
+    }
+    if(entry.isDirectory()){
+      if(String(entry.name()).toInt() == anno_del)
+        pulisci(entry, anno_del);          
+      if(String(entry.name()).toInt() < anno_del){
+        pulisci(entry,String(entry.name()).toInt());   
+        String pvt = String("DATABASE/"+String(entry.name()));
+        char pvt_in[20];
+        pvt.toCharArray(pvt_in, 20); 
+        SD.rmdir(pvt_in);
+      }
+    }else{
+      if((getValue(String(entry.name()), '-', 0).toInt() <= mese_del && anno == anno_del) || anno < anno_del){
+        String pvt = String("DATABASE/"+String(anno)+"/"+String(entry.name()));
+        char pvt_in[40];
+        pvt.toCharArray(pvt_in, 40);    
+        SD.remove(pvt_in);
+      }
+    }
+    entry.close();     
+  }
+}
+
 void loop() {    
   ora = rtc.now();
   //Serial.println(ora.unixtime());
@@ -557,13 +592,6 @@ void loop() {
     Serial.print("Comando ricevuto: ");
     Serial.println(received);
     execCmd(received);
-    /*[ ] leggere i dati ricevuti da seriale o da bluetooth ed eseguirli
-     * [X] print
-     * [ ] reload config
-     * [ ] restart nodemcu
-     * [ ] set (tutti i  campi)
-     * [ ] get (tutti i campi)
-     */
   }
   
   if(stats && !in_error){
@@ -573,6 +601,7 @@ void loop() {
         Serial.println("Ci sono problemi con il file di configurazione");
         return;
       }
+      pulisci(SD.open("DATABASE/")); 
     }
     wifiConnect();
   }  
