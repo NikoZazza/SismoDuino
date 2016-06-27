@@ -53,7 +53,7 @@ bool dhcp = true;
 int ip[] = {192, 168, 1, 4};
 int gateway[] = {192, 168, 1, 1};
 int subnet_mask[] = {255, 255, 255, 0};
-String server_query = "http://sismoduino.altervista.org/";
+String server_query = "sismoduino.altervista.org";
 String user = "guest";
 String pwd = "guest";
 double lat = 0.0;
@@ -157,21 +157,18 @@ void setAllarm(bool var){
   digitalWrite(PIN_BUZZ, LOW);
 }
 //Legge la configurazione e la memorizza nell'array
-bool loadConfig(){
+bool loadConfig(){  
   Serial.println("Carico la configurzione...");
   if (SD.exists("CONFIG.JSO")) {
-     Serial.println("Lettura scheda SD");
+      Serial.println("Lettura configurazione da scheda SD");
       File conf = SD.open("CONFIG.JSO", FILE_READ);
-      StaticJsonBuffer<1024> jsonBuffer;
-      char c [1024];
-      int  i = 0;
+      DynamicJsonBuffer jsonBuffer;
+      String c = "";
       while (conf.available()) {
-        c[i] =(char) conf.read();
-        i++;
+        c +=(char) conf.read();
       }
       conf.close(); 
-      JsonObject& root = jsonBuffer.parseObject(c);
-
+      JsonObject& root = jsonBuffer.parseObject(c.c_str());
       if (!root.success()){
         Serial.println("Alla configurazione mancano alcuni parametri!");
         SD.remove("CONFIG.JSO");
@@ -203,8 +200,8 @@ bool loadConfig(){
         server_query = root["server_query"].asString();
         user = root["user"].asString();
         pwd = root["pwd"].asString();
-        lat = (double)root["lat"];
-        lon = (double)root["lon"];
+        lat = double_with_n_digits(root["lat"], 8);
+        lon = double_with_n_digits(root["lon"], 8);
         refresh_config = ora.unixtime();
         return true;
       }else{
@@ -253,7 +250,7 @@ void setConfig(){
   if(SD.exists("CONFIG.JSO"))
     SD.remove("CONFIG.JSO");
   File conf = SD.open("CONFIG.JSO", FILE_WRITE);
-  StaticJsonBuffer<1024> jsonBuffer;
+  DynamicJsonBuffer jsonBuffer;
   JsonObject& root = jsonBuffer.createObject();
   
   root["status"] = stats;
@@ -296,7 +293,7 @@ void execCmd(String cmd){
   if(cmd == "set" ||  getValue(cmd, ' ', 0) == "set"){
     if(wifi_mode == 2)
       wifi_mode = 1;  
-      else
+    else
       wifi_mode = 2;   
   }
 }
@@ -383,6 +380,9 @@ void printValues(){
   Serial.println(lat);
   Serial.print("lon=");  
   Serial.println(lon);
+  Serial.print("timestamp");
+  ora = rtc.now();
+  Serial.println(ora.unixtime());
 } 
 
 void wifiConnect(){
@@ -438,7 +438,6 @@ void wifiConnect(){
         Serial.println(myIP);
         server.onNotFound(handleNotFound);
         server.begin();
-        Serial.println("HTTP server started");
         wifi_started2 = true;
       }
       return;   
@@ -533,7 +532,53 @@ void pulisci(File dir, int anno  = 0) {
   }
 }
 
-void loop() {    
+String request(String url){
+  if(wifi_mode != 1)
+    return "";
+  WiFiClient client;
+  if (!client.connect(server_query.c_str(), 80)) {
+    Serial.println("Connessione Fallita");
+    return "";
+  }  
+  client.print(String("GET ")+url+" HTTP/1.1\r\nHost: "+server_query+"\r\nConnection: close\r\n\r\n");
+  
+  unsigned long timeout = millis();
+  while (client.available() == 0) {
+    if (millis() - timeout > 5000) {
+      Serial.println(">>> Client Timeout !");
+      client.stop();
+      return "";
+    }
+  }
+  String ret = "";
+  while(client.available())
+    ret += client.readStringUntil('\r');
+  return ret; 
+}
+
+void refreshC(){  
+  String g = request("/refresh.php");
+  if(g != ""){
+    String c = "{";
+    c += getValue(g, '{', 1);
+    c = getValue(c, '}', 0) + "}";
+    if(c == "{}")
+      return;
+    DynamicJsonBuffer jsonBuffer;
+    JsonObject& root = jsonBuffer.parseObject(c.c_str());
+    if(!root.success() || isValidConf(root)){
+      Serial.println("non è valida");
+      return;
+    }
+    DateTime o(DateTime(0)+TimeSpan((int)root["timestamp"]));
+    rtc.adjust(o);
+    lat =  double_with_n_digits(root["lat"], 8);
+    lon =  double_with_n_digits(root["lon"], 8);
+    setConfig();
+  } 
+}
+
+void loop() { 
   ora = rtc.now();
   //Serial.println(ora.unixtime());
   if(analogRead(PIN_BTN1) > 150){
@@ -601,9 +646,10 @@ void loop() {
         Serial.println("Ci sono problemi con il file di configurazione");
         return;
       }
+      refreshC();
       pulisci(SD.open("DATABASE/")); 
     }
-    wifiConnect();
+    wifiConnect();      
   }  
   Vector norm = accelerometro.readNormalize();
   if(count_acc >= 3){
