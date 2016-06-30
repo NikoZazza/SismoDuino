@@ -446,6 +446,11 @@ void wifiConnect(){
 
 bool loadFromSdCard(String path){
   String dataType = "text/plain";
+  String p = path;
+  p.toLowerCase();
+  Serial.println(p);
+  if(p == "/config.jso")
+    return false;
   if(path.endsWith("/")) path += "index.htm";
 
   if(path.endsWith(".src")) path = path.substring(0, path.lastIndexOf("."));
@@ -472,17 +477,14 @@ bool loadFromSdCard(String path){
 
   if (server.hasArg("download")) dataType = "application/octet-stream";
 
-  if (server.streamFile(dataFile, dataType) != dataFile.size()) {
-    Serial.println("Sent less data than expected!");
-  }
-
+  server.streamFile(dataFile, dataType);
   dataFile.close();
   return true;
 }
 
 void handleNotFound(){
   if(loadFromSdCard(server.uri())) return;
-  String message = "SDCARD Not Detected\n\n";
+  String message = "<b>Eroore 404</b>! Pagina non trovata\n\n";
   message += "URI: ";
   message += server.uri();
   message += "\nMethod: ";
@@ -491,6 +493,36 @@ void handleNotFound(){
   message += server.args();
   message += "\n";
   for (uint8_t i=0; i<server.args(); i++){
+    if(server.argName(i) == "getdata"){
+      ora = rtc.now();
+      String data1 = "{"+String(ora.unixtime())+";"+String(g_x, 8)+";"+String(g_y, 8)+";"+String(g_z, 8)+";"+String(g_tot, 8)+"}";  
+      server.send(200, "text/plain", data1);
+      return;
+    }
+    if(server.argName(i) == "getconfig"){
+      if (SD.exists("CONFIG.JSO")) {
+          File conf = SD.open("CONFIG.JSO", FILE_READ);
+          DynamicJsonBuffer jsonBuffer;
+          String c = "";
+          while (conf.available()) {
+            c +=(char) conf.read();
+          }
+          conf.close(); 
+          JsonObject& root = jsonBuffer.parseObject(c.c_str());
+          if (!root.success()){
+            SD.remove("CONFIG.JSO");
+            if(!loadConfig())
+              return;
+          }
+          if(isValidConf(root)){ //la configurazione è valida
+            root["pwd"] = "";
+            String c = "";
+            root.prettyPrintTo(c);
+            server.send(200, "text/plain", c);
+            return;
+          }
+      }
+    }
     message += " NAME:"+server.argName(i) + "\n VALUE:" + server.arg(i) + "\n";
   }
   server.send(404, "text/plain", message);
