@@ -20,7 +20,7 @@
 #include <SD.h>
 #include <Wire.h>
 #include <ArduinoJson.h>
-#include "RTClib.h"
+#include <RTClib.h>
 #include <ADXL345.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h> 
@@ -35,8 +35,6 @@ int PIN_BUZZ = 0; // buzzer
 int PIN_LED = 2; //pin led dello stato
 int volume = 0; //volume dell'allarme
 bool direction_vol = true; //direzione volume, se è true incrementa
-
-DateTime ora; //ora corrente del sensore RTC
 int refresh_config = 0; //quando(data) è stata caricata la configurazione
 
 bool stats = true; //se il sistema è acceso(true)
@@ -74,8 +72,8 @@ double g_tot = 0.00;
 
 //WiFi
 ESP8266WebServer server(80);
-bool wifi_started1 = false;
-bool wifi_started2 = false;
+bool wifi_started1 = false; //se il wifi è in modalità STA
+bool wifi_started2 = false; //se il wifi è in modalità AP 
 
 void setup() {  
   Serial.begin(9600);
@@ -202,6 +200,7 @@ bool loadConfig(){
         pwd = root["pwd"].asString();
         lat = double_with_n_digits(root["lat"], 8);
         lon = double_with_n_digits(root["lon"], 8);
+        DateTime ora = rtc.now(); //ora corrente del sensore RTC
         refresh_config = ora.unixtime();
         return true;
       }else{
@@ -299,7 +298,7 @@ void execCmd(String cmd){
 }
 //funzione che memorizza le forze g in file csv
 void memorizza(){
-  ora = rtc.now();
+  DateTime ora = rtc.now();
   if(!SD.exists("database/"))
     SD.mkdir("database/");
   if(!SD.exists("database/")){
@@ -381,7 +380,7 @@ void printValues(){
   Serial.print("lon=");  
   Serial.println(lon);
   Serial.print("timestamp");
-  ora = rtc.now();
+  DateTime ora = rtc.now();
   Serial.println(ora.unixtime());
 } 
 
@@ -461,9 +460,6 @@ bool loadFromSdCard(String path){
   else if(path.endsWith(".gif")) dataType = "image/gif";
   else if(path.endsWith(".jpg")) dataType = "image/jpeg";
   else if(path.endsWith(".ico")) dataType = "image/x-icon";
-  else if(path.endsWith(".xml")) dataType = "text/xml";
-  else if(path.endsWith(".pdf")) dataType = "application/pdf";
-  else if(path.endsWith(".zip")) dataType = "application/zip";
 
   File dataFile = SD.open(path.c_str());
   if(dataFile.isDirectory()){
@@ -493,8 +489,8 @@ void handleNotFound(){
   message += server.args();
   message += "\n";
   for (uint8_t i=0; i<server.args(); i++){
-    if(server.argName(i) == "getdata"){
-      ora = rtc.now();
+    if(server.argName(i) == "getdata"){   
+      DateTime ora = rtc.now();
       String data1 = "{"+String(ora.unixtime())+";"+String(g_x, 8)+";"+String(g_y, 8)+";"+String(g_z, 8)+";"+String(g_tot, 8)+"}";  
       server.send(200, "text/plain", data1);
       return;
@@ -611,7 +607,7 @@ void refreshC(){
 }
 
 void loop() { 
-  ora = rtc.now();
+  DateTime ora = rtc.now(); //ora corrente del sensore RTC
   //Serial.println(ora.unixtime());
   if(analogRead(PIN_BTN1) > 150){
     setStatus(!stats);
