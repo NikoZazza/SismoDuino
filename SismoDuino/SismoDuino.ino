@@ -491,7 +491,7 @@ void handleNotFound(){
   for (uint8_t i=0; i<server.args(); i++){
     if(server.argName(i) == "getdata"){   
       DateTime ora = rtc.now();
-      String data1 = "{"+String(ora.unixtime())+";"+String(g_x, 8)+";"+String(g_y, 8)+";"+String(g_z, 8)+";"+String(g_tot, 8)+"}";  
+      String data1 = "{ \"timestamp\": "+String(ora.minute())+"."+String(ora.second())+",\"gx\": "+String(g_x, 8)+",\"gy\": "+String(g_y, 8)+",\"gz\": "+String(g_z, 8)+",\"gt\": "+String(g_tot, 8)+" }";  
       server.send(200, "text/plain", data1);
       return;
     }
@@ -561,6 +561,8 @@ void pulisci(File dir, int anno  = 0) {
 }
 
 String request(String url){
+  if(!wifi_started1 && !wifi_started2)
+    return "";
   if(wifi_mode != 1)
     return "";
   WiFiClient client;
@@ -608,7 +610,6 @@ void refreshC(){
 
 void loop() { 
   DateTime ora = rtc.now(); //ora corrente del sensore RTC
-  //Serial.println(ora.unixtime());
   if(analogRead(PIN_BTN1) > 150){
     setStatus(!stats);
   }
@@ -646,7 +647,7 @@ void loop() {
     }else if(ora.unixtime() > time_allarm + 60){ //faccio durare l'allarme per 1 minuto
       in_allarm = false;  
     }    
-    Serial.println("=====================ALLARME==========================");
+    Serial.println("=====================ALLARME=====================");
     if(digitalRead(PIN_BTN2) == HIGH){
       in_allarm = false;
     }
