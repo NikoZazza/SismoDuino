@@ -2,218 +2,227 @@
 <html lang="it">
 <head>
     <meta charset="utf-8">
-    <title>Home &middot; SismoDuino</title>
-	<link rel="stylesheet" href="./css/bs-min.css">
+    <title>Impostazioni - SismoDuino</title>
+    <link rel="stylesheet" href="./css/bs-min.css">
     <script src="./js/jquery.js"></script>
     <script src="./js/chart.js"></script>
 </head>
 <body>
 
 <nav class="navbar navbar-default" style="padding 0px">
-	<div class="container-fluid">
-    	<div class="navbar-header">
-      		<button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar-collapse" aria-expanded="false">
-        		<span class="sr-only">Toggle navigation</span>
-        		<span class="icon-bar"></span>
-        		<span class="icon-bar"></span>
-        		<span class="icon-bar"></span>
-      		</button>
+    <div class="container-fluid">
+        <div class="navbar-header">
+            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar-collapse"
+                    aria-expanded="false">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
             <ul class="nav navbar-nav navbar-left">
                 <li id="nav_index" class="">
-                    <a href="index.html" class="navbar-brand">SismoDuino</a>
+                    <a href="index.htm" class="navbar-brand">SismoDuino</a>
                 </li>
             </ul>
-		</div>
+        </div>
         <div class="collapse navbar-collapse" id="navbar-collapse">
             <ul class="nav navbar-nav">
                 <li id="nav_stats">
-                    <a href="stats.html">Statistiche</a>
+                    <a href="stats.htm">Statistiche</a>
                 </li>
                 <li id="nav_settings">
-                    <a href="settings.html">Impostazioni</a>
+                    <a href="settings.htm">Impostazioni</a>
                 </li>
             </ul>
         </div>
-	</div>
+    </div>
 </nav>
 
 <div class="container">
-	<div class="jumbotron" style="padding:10px">
-    	Configura il dispositivo compilando questo semplice documento.
+    <div class="jumbotron" style="padding:10px">
+        Configura il dispositivo compilando questo semplice documento.
     </div>
-  <div class="panel panel-default">
-    <div class="panel-body">
-    <div class="col-md-8">
-      <form>
-        <div class="form-group">
-          <label>Allarme</label>
-          <label class="radio-inline">
-            <input type="radio" name="allarme" id="allarmeOn" value="on" onChange="changeAllarm()" checked> On
-          </label>
-          <label class="radio-inline">
-            <input type="radio" name="allarme" id="allarmeOff" value="off" onChange="changeAllarm()"> Off
-          </label>
+    <div class="panel panel-default">
+        <div class="panel-body">
+            <div class="col-md-8">
+                <form>
+                    <div class="form-group">
+                        <label>Allarme</label>
+                        <label class="radio-inline">
+                            <input type="radio" name="allarme" id="allarmeOn" value="on" onChange="changeAllarm()"
+                                   checked> On
+                        </label>
+                        <label class="radio-inline">
+                            <input type="radio" name="allarme" id="allarmeOff" value="off" onChange="changeAllarm()">
+                            Off
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>WiFi mode</label>
+                        <label class="radio-inline">
+                            <input type="radio" name="wifiMode" id="wifiModeNone" value="none"
+                                   onChange="changeWifi(value)"> Nessuno
+                        </label>
+                        <label class="radio-inline">
+                            <input type="radio" name="wifiMode" id="wifiModeSTA" value="sta"
+                                   onChange="changeWifi(value)"> Station
+                        </label>
+                        <label class="radio-inline">
+                            <input type="radio" name="wifiMode" id="wifiModeAP" value="ap" onChange="changeWifi(value)"
+                                   checked> Access Point
+                        </label>
+                    </div>
+                    <div class="form-group" id="groupSsid">
+                        <label>SSID</label>
+                        <input type="text" class="form-control" id="ssid" placeholder="SSID">
+                    </div>
+                    <div class="form-group" id="groupPassword">
+                        <label>Password</label>
+                        <input type="password" class="form-control" id="password" placeholder="Password del WiFi">
+                    </div>
+                    <div class="form-group">
+                        <label>DHCP</label>
+                        <label class="radio-inline">
+                            <input type="radio" name="dhcp" id="dhcpOn" value="on" onChange="changeDhcp(value)" checked>
+                            On
+                        </label>
+                        <label class="radio-inline">
+                            <input type="radio" name="dhcp" id="dhcpOff" value="off" onChange="changeDhcp(value)"> Off
+                        </label>
+                    </div>
+                    <div class="form-group" id="groupIp" style="display:none">
+                        <label>IP_v4</label>
+                        <input type="text" class="form-control" id="ip" placeholder="000.000.000.000">
+                    </div>
+                    <div class="form-group" id="groupGateway" style="display:none">
+                        <label>Gateway</label>
+                        <input type="text" class="form-control" id="gateway" placeholder="000.000.000.000">
+                    </div>
+                    <div class="form-group" id="groupSubnet" style="display:none">
+                        <label>Subnet</label>
+                        <input type="text" class="form-control" id="subnet" placeholder="000.000.000.000">
+                    </div>
+                    <div class="form-group">
+                        <label>Server</label>
+                        <input type="text" class="form-control" id="server" placeholder="xionbig.altervista.org">
+                    </div>
+                    <div class="form-group">
+                        <label>Utente</label>
+                        <input type="text" class="form-control" id="utente" placeholder="Utente">
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" class="form-control" id="pwd" placeholder="Password dell'utente">
+                    </div>
+                    <div class="form-group">
+                        <label style="color: red">Inserisci la password corrente!</label>
+                        <input type="text" class="form-control" id="pwdNow" placeholder="Password">
+                    </div>
+                    <a href="index.html">
+                        <button type="button" class="btn btn-default">Annulla</button>
+                    </a>
+                    <button type="submit" class="btn btn-success">Salva</button>
+                </form>
+            </div>
         </div>
-        <div class="form-group">
-        	<label>WiFi mode</label>
-          <label class="radio-inline">
-            <input type="radio" name="wifiMode" id="wifiModeNone" value="none" onChange="changeWifi(value)"> Nessuno
-          </label>
-          <label class="radio-inline">
-            <input type="radio" name="wifiMode" id="wifiModeSTA" value="sta" onChange="changeWifi(value)"> Station
-          </label>          
-          <label class="radio-inline">
-            <input type="radio" name="wifiMode" id="wifiModeAP" value="ap" onChange="changeWifi(value)" checked> Access Point            
-          </label>
-        </div>
-        <div class="form-group" id="groupSsid">
-    		<label>SSID</label>
-    		<input type="text" class="form-control" id="ssid" placeholder="SSID">
-  		</div>
-        <div class="form-group" id="groupPassword">
-    		<label>Password</label>
-    		<input type="password" class="form-control" id="password" placeholder="Password del WiFi">
-  		</div>
-        <div class="form-group">
-          <label>DHCP</label>
-          <label class="radio-inline">
-            <input type="radio" name="dhcp" id="dhcpOn" value="on" onChange="changeDhcp(value)" checked> On
-          </label>
-          <label class="radio-inline">
-            <input type="radio" name="dhcp" id="dhcpOff" value="off" onChange="changeDhcp(value)"> Off
-          </label>
-        </div>
-        <div class="form-group" id="groupIp" style="display:none">
-    		<label>IP_v4</label>
-    		<input type="text" class="form-control" id="ip" placeholder="000.000.000.000">
-  		</div>
-        <div class="form-group" id="groupGateway" style="display:none">
-    		<label>Gateway</label>
-    		<input type="text" class="form-control" id="gateway" placeholder="000.000.000.000">
-  		</div>
-        <div class="form-group" id="groupSubnet" style="display:none">
-    		<label>Subnet</label>
-    		<input type="text" class="form-control" id="subnet" placeholder="000.000.000.000">
-  		</div>
-        <div class="form-group">
-    		<label>Server</label>
-    		<input type="text" class="form-control" id="server" placeholder="xionbig.altervista.org">
-  		</div>
-        <div class="form-group">
-    		<label>Utente</label>
-    		<input type="text" class="form-control" id="utente" placeholder="Utente">
-  		</div>
-         <div class="form-group">
-    		<label>Password</label>
-    		<input type="password" class="form-control" id="pwd" placeholder="Password dell'utente">
-  		</div>
-        <div class="form-group">
-    		<label style="color: red">Inserisci la password corrente!</label>
-    		<input type="text" class="form-control" id="pwdNow" placeholder="Password">
-  		</div>
-        <a href="index.html"><button type="button" class="btn btn-default">Annulla</button></a>
-        <button type="submit" class="btn btn-success">Salva</button>
-      </form>
     </div>
-  </div> 
-  </div>
 </div>
 <br>
 <div class="container">
-	<div class="jumbotron container" style="padding: 10px" align="center">
-    	<div class="col-md-4">Licence GNU v3.0</div>
+    <div class="jumbotron container" style="padding: 10px" align="center">
+        <div class="col-md-4">Licence GNU v3.0</div>
         <div class="col-md-4"><a align="center" href="https://github.com/xionbig/SismoDuino">Project on GitHub</a></div>
         <div class="col-md-4"><i>Mykola Zatsarynnyy</i></div>
-    </div> 
+    </div>
     <br><br><br>
 </div>
 
 </body>
 <script>
-function changeWifi(value){
-	if(value == "none"){
-		document.getElementById("groupSsid").style = "display:none";
-        document.getElementById("groupPassword").style = "display:none";
-        
-	}else{
-    	document.getElementById("groupSsid").style = "";
-    	document.getElementById("groupPassword").style = "";
-    }
-}
-function changeDhcp(value){
-	if(value == "on"){
-    	document.getElementById("groupIp").style = "display:none";
-    	document.getElementById("groupGateway").style = "display:none";
-        document.getElementById("groupSubnet").style = "display:none";
-    }else{    	
-    	document.getElementById("groupIp").style = "";
-    	document.getElementById("groupGateway").style = "";
-        document.getElementById("groupSubnet").style = "";
-    }
-}
+    function changeWifi(value) {
+        if (value == "none") {
+            document.getElementById("groupSsid").style = "display:none";
+            document.getElementById("groupPassword").style = "display:none";
 
-$(document).ready(function(){
-	l = location.href; 
-	l = l.substr(l.lastIndexOf("/")+1).split(/[?#]/)[0].split(".")[0];
-  	if(l == "index"){
-  		document.getElementById("nav_index").className = "active";
-        document.title = "Home &middot; SismoDuino";
-	}
-  	if(l == "stats"){
-    	document.getElementById("nav_stats").className = "active";
-        document.title = "Statistiche &middot; SismoDuino";
-	}
-  	if(l == "settings"){
-    	document.getElementById("nav_settings").className = "active";
-        document.title = "Impostazioni &middot; SismoDuino";
-  	}
-    var xhttp = new XMLHttpRequest();
-  	xhttp.onreadystatechange = function() {
-	    if (xhttp.readyState == 4 && xhttp.status == 200) {
-	     	var obj = JSON.parse(xhttp.responseText);
-            if(obj["allarm"] == true){
-            	document.getElementById("allarmeOn").checked = true;
-            	document.getElementById("allarmeOff").checked = false;
-            }else{
-            	document.getElementById("allarmeOn").checked = false;
-            	document.getElementById("allarmeOff").checked = true;
+        } else {
+            document.getElementById("groupSsid").style = "";
+            document.getElementById("groupPassword").style = "";
+        }
+    }
+    function changeDhcp(value) {
+        if (value == "on") {
+            document.getElementById("groupIp").style = "display:none";
+            document.getElementById("groupGateway").style = "display:none";
+            document.getElementById("groupSubnet").style = "display:none";
+        } else {
+            document.getElementById("groupIp").style = "";
+            document.getElementById("groupGateway").style = "";
+            document.getElementById("groupSubnet").style = "";
+        }
+    }
+
+    $(document).ready(function () {
+        l = location.href;
+        l = l.substr(l.lastIndexOf("/") + 1).split(/[?#]/)[0].split(".")[0];
+        if(l == "index"){
+            document.getElementById("nav_index").className = "active";
+            document.title = "Home - SismoDuino";
+        }
+        if(l == "stats"){
+            document.getElementById("nav_stats").className = "active";
+            document.title = "Statistiche - SismoDuino";
+        }
+        if(l == "settings"){
+            document.getElementById("nav_settings").className = "active";
+            document.title = "Impostazioni - SismoDuino";
+        }
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (xhttp.readyState == 4 && xhttp.status == 200) {
+                var obj = JSON.parse(xhttp.responseText);
+                if (obj["allarm"] == true) {
+                    document.getElementById("allarmeOn").checked = true;
+                    document.getElementById("allarmeOff").checked = false;
+                } else {
+                    document.getElementById("allarmeOn").checked = false;
+                    document.getElementById("allarmeOff").checked = true;
+                }
+                switch (obj["wifi_mode"]) {
+                    case 0:
+                        document.getElementById("wifiModeNone").checked = true;
+                        document.getElementById("wifiModeSTA").checked = false;
+                        document.getElementById("wifiModeAP").checked = false;
+                        break;
+                    case 1:
+                        document.getElementById("wifiModeNone").checked = false;
+                        document.getElementById("wifiModeSTA").checked = true;
+                        document.getElementById("wifiModeAP").checked = false;
+                        break;
+                    case 2:
+                        document.getElementById("wifiModeNone").checked = false;
+                        document.getElementById("wifiModeSTA").checked = false;
+                        document.getElementById("wifiModeAP").checked = true;
+                        break;
+                }
+                document.getElementById("ssid").value = obj["my_ssid"];
+                document.getElementById("password").value = obj["password"];
+                if (obj["dhcp"] == true) {
+                    document.getElementById("dhcpOn").checked = true;
+                    document.getElementById("dhcpOff").checked = false;
+                } else {
+                    document.getElementById("dhcpOn").checked = false;
+                    document.getElementById("dhcpOff").checked = true;
+                }
+                document.getElementById("ip").value = obj["ip_v4"];
+                document.getElementById("gateway").value = obj["gateway"];
+                document.getElementById("subnet").value = obj["subnet_mask"];
+                document.getElementById("server").value = obj["server_query"];
+                document.getElementById("utente").value = obj["user"];
             }
-            switch(obj["wifi_mode"]){
-            	case 0:
-                	document.getElementById("wifiModeNone").checked = true;                    
-                	document.getElementById("wifiModeSTA").checked = false;
-                	document.getElementById("wifiModeAP").checked = false;
-                break;
-                case 1:
-                	document.getElementById("wifiModeNone").checked = false;                    
-                	document.getElementById("wifiModeSTA").checked = true;
-                	document.getElementById("wifiModeAP").checked = false;
-                break;
-                case 2:
-                	document.getElementById("wifiModeNone").checked = false;                    
-                	document.getElementById("wifiModeSTA").checked = false;
-                	document.getElementById("wifiModeAP").checked = true;
-                break; 
-            }
-            document.getElementById("ssid").value = obj["my_ssid"];       
-            document.getElementById("password").value = obj["password"];
-            if(obj["dhcp"] == true){
-            	document.getElementById("dhcpOn").checked = true;
-            	document.getElementById("dhcpOff").checked = false;
-            }else{
-            	document.getElementById("dhcpOn").checked = false;
-            	document.getElementById("dhcpOff").checked = true;
-            }
-            document.getElementById("ip").value = obj["ip_v4"];
-            document.getElementById("gateway").value = obj["gateway"];
-            document.getElementById("subnet").value = obj["subnet_mask"];
-            document.getElementById("server").value = obj["server_query"];
-            document.getElementById("utente").value = obj["user"];
-    	}
-        
-  	};
-  	xhttp.open("GET", "ajax_info.txtt?getconfig=true", true);
-  	xhttp.send();
-});    
+
+        };
+        xhttp.open("GET", "ajax_info.txtt?getconfig=true", true);
+        xhttp.send();
+    });
 </script>
 </html>
